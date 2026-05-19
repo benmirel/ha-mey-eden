@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "התחברות למי עדן",
+        "description": "הכנס את מספר הטלפון שלך (10 ספרות, מתחיל ב-05). נשלח אליך קוד אימות ב-SMS.",
+        "data": {
+          "phone": "מספר טלפון"
+        }
+      },
+      "verify": {
+        "title": "אימות SMS",
+        "description": "הכנס את קוד האימות שקיבלת ב-SMS למספר {phone}",
+        "data": {
+          "otp_code": "קוד אימות"
+        }
+      },
+      "reauth_confirm": {
+        "title": "החיבור פג תוקף",
+        "description": "ה-session של החשבון {phone} פג תוקף. נשלח SMS חדש להתחברות מחדש."
+      }
+    },
+    "error": {
+      "invalid_phone_format": "מספר טלפון לא תקין - חייב להיות 10 ספרות ולהתחיל ב-05",
+      "cannot_connect": "לא ניתן להתחבר למי עדן - בדוק חיבור לאינטרנט",
+      "sms_failed": "שליחת ה-SMS נכשלה - נסה שוב",
+      "invalid_auth": "קוד האימות שגוי או פג תוקף"
+    },
+    "abort": {
+      "already_configured": "החשבון כבר מוגדר",
+      "reauth_successful": "ההתחברות מחדש הצליחה"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_delivery": {
+        "name": "משלוח קרוב"
+      }
+    }
+  }
+}

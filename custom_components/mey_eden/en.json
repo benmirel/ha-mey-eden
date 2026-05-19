@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mei Eden Login",
+        "description": "Enter your phone number (10 digits, starts with 05). We'll send an OTP via SMS.",
+        "data": {
+          "phone": "Phone number"
+        }
+      },
+      "verify": {
+        "title": "SMS Verification",
+        "description": "Enter the code sent via SMS to {phone}",
+        "data": {
+          "otp_code": "OTP code"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Session expired",
+        "description": "Session for account {phone} expired. A new SMS will be sent for re-authentication."
+      }
+    },
+    "error": {
+      "invalid_phone_format": "Invalid phone format - must be 10 digits starting with 05",
+      "cannot_connect": "Cannot reach Mei Eden - check internet connection",
+      "sms_failed": "SMS sending failed - please retry",
+      "invalid_auth": "Wrong or expired OTP code"
+    },
+    "abort": {
+      "already_configured": "Account already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  }
+}

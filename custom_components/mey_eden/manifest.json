@@ -1,0 +1,12 @@
+{
+  "domain": "mei_eden",
+  "name": "Mei Eden Israel",
+  "documentation": "https://github.com/YOUR_GITHUB_NAME/ha-mei-eden",
+  "dependencies": [],
+  "codeowners": ["@benmirel"],
+  "requirements": [],
+  "iot_class": "cloud_polling",
+  "version": "1.1.0",
+  "config_flow": true,
+  "integration_type": "service"
+}

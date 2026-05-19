@@ -348,13 +348,18 @@ class MeiEdenLastInvoiceSensor(MeiEdenBaseSensor):
 
     @property
     def native_value(self):
-        inv = self._latest_invoice()
-        if not inv:
-            return self._get_section("com-statements", "last_invoice_amount")
-        try:
-            return float(inv.get("total_amount", 0))
-        except (TypeError, ValueError):
-            return None
+
+        data = self.coordinator.data or {}
+        # חיפוש רב-שלבי בתוך ה-dashboard
+        sections = data.get("dashboard", {}).get("sections", {})
+        statements = sections.get("com-statements", {})
+        
+
+        if statements and "last_invoice_amount" in statements:
+            return float(statements.get("last_invoice_amount", 0))
+            
+        # אם לא קיים, תחזיר 0 כדי לא לקרוס
+        return 0.0
 
     @property
     def extra_state_attributes(self):

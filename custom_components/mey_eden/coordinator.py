@@ -38,7 +38,7 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             # משיכת כל הסקשנים כולל חשבוניות (statements)
             data = await self.client.fetch_sections(
-                ["dashboard", "delivery", "equipment", "customer", "statements"]
+                ["dashboard", "delivery", "equipment", "customer"]
             )
         except MeiEdenAuthError as err:
             # ה-session פג רשמית

@@ -69,6 +69,10 @@ class MeiEdenBaseSensor(CoordinatorEntity[MeiEdenCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._customer_number = str(customer_number)
         self._attr_unique_id = f"mei_eden_{customer_number}_{key}"
+        
+        # 🔥 הנה השורה שפותרת את כל השמות השבורים: כופה שמות נקיים באנגלית!
+        self.entity_id = f"sensor.mei_eden_{customer_number}_{key}"
+        
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(customer_number))},
             name=f"מי עדן ({customer_number})",

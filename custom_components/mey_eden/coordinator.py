@@ -40,9 +40,12 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ["dashboard", "delivery", "equipment", "customer"]
             )
         except MeiEdenAuthError as err:
-            # ה-session פג - HA יציע למשתמש להתחבר מחדש
+            # ה-session פג רשמית
             raise ConfigEntryAuthFailed(str(err)) from err
         except MeiEdenApiError as err:
+            # 🔥 האק הגנה: מג'נטו זורק 400 במקום 401 כשהעוגייה נמחקת
+            if "customerId =" in str(err) or "No such entity" in str(err):
+                raise ConfigEntryAuthFailed("פג תוקף החיבור למי עדן, יש להתחבר מחדש.") from err
             raise UpdateFailed(str(err)) from err
 
         # שמירת עוגיות מעודכנות

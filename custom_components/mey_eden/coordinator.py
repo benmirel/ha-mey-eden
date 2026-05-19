@@ -36,14 +36,15 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch new data and persist any refreshed cookies."""
         try:
+            # משיכת כל הסקשנים כולל חשבוניות (statements)
             data = await self.client.fetch_sections(
-                ["dashboard", "delivery", "equipment", "customer"]
+                ["dashboard", "delivery", "equipment", "customer", "statements"]
             )
         except MeiEdenAuthError as err:
             # ה-session פג רשמית
             raise ConfigEntryAuthFailed(str(err)) from err
         except MeiEdenApiError as err:
-            # 🔥 האק הגנה: מג'נטו זורק 400 במקום 401 כשהעוגייה נמחקת
+            # האק הגנה: מג'נטו זורק 400 במקום 401 כשהעוגייה נמחקת
             if "customerId =" in str(err) or "No such entity" in str(err):
                 raise ConfigEntryAuthFailed("פג תוקף החיבור למי עדן, יש להתחבר מחדש.") from err
             raise UpdateFailed(str(err)) from err

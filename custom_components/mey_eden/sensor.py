@@ -45,13 +45,25 @@ async def async_setup_entry(
     customer_number = entry.data.get(CONF_PHONE) or entry.entry_id
 
     async_add_entities([
+        # --- משלוחים ---
         MeiEdenNextDeliverySensor(coordinator, customer_number),
         MeiEdenSecondDeliverySensor(coordinator, customer_number),
-        MeiEdenBalanceSensor(coordinator, customer_number),
         MeiEdenDeliveryFrequencySensor(coordinator, customer_number),
         MeiEdenConsumptionSensor(coordinator, customer_number),
+        MeiEdenUrgentDeliverySensor(coordinator, customer_number),
+        # --- כספים ---
+        MeiEdenBalanceSensor(coordinator, customer_number),
+        MeiEdenLastInvoiceSensor(coordinator, customer_number),
+        MeiEdenOverdueSensor(coordinator, customer_number),
+        # --- ציוד ---
+        MeiEdenEquipmentNameSensor(coordinator, customer_number),
+        MeiEdenEquipmentInstallDateSensor(coordinator, customer_number),
+        MeiEdenEquipmentOwnershipSensor(coordinator, customer_number),
+        # --- חשבון ---
         MeiEdenStatusSensor(coordinator, customer_number),
         MeiEdenAddressSensor(coordinator, customer_number),
+        MeiEdenCustomerNameSensor(coordinator, customer_number),
+        MeiEdenIsPackageSensor(coordinator, customer_number),
     ])
 
 
@@ -95,6 +107,24 @@ class MeiEdenBaseSensor(CoordinatorEntity[MeiEdenCoordinator], SensorEntity):
                     if isinstance(sub_section, dict) and key in sub_section:
                         return sub_section[key]
         return default
+
+    def _get_section(self, *keys: str, default: Any = None) -> Any:
+        """גישה ישירה לנתיב מסוים בתוך dashboard.sections."""
+        data = self.coordinator.data or {}
+        obj = data.get("dashboard", {}).get("sections", {})
+        for k in keys:
+            if not isinstance(obj, (dict, list)):
+                return default
+            if isinstance(obj, list):
+                try:
+                    obj = obj[int(k)]
+                except (ValueError, IndexError):
+                    return default
+            else:
+                obj = obj.get(k)
+                if obj is None:
+                    return default
+        return obj if obj is not None else default
 
 
 class MeiEdenNextDeliverySensor(MeiEdenBaseSensor):
@@ -185,14 +215,12 @@ class MeiEdenConsumptionSensor(MeiEdenBaseSensor):
         if not freq_weeks:
             return None
 
-        # ממוצע 3 חודשים אחרונים
         recent = consumption[-3:]
         avg_liters = sum(c.get("Liters", 0) for c in recent if isinstance(c, dict)) / len(recent)
 
         if avg_liters <= 0:
             return None
 
-        # חישוב ליטרים למשלוח (הורדנו את החלוקה ב-19!)
         liters_per_delivery = avg_liters * (float(freq_weeks) / self.WEEKS_PER_MONTH)
         return liters_per_delivery
 
@@ -271,3 +299,241 @@ class MeiEdenAddressSensor(MeiEdenBaseSensor):
         ]
         val = ", ".join(p.strip() for p in parts if p and isinstance(p, str) and p.strip())
         return val if val else "לא נמצאה כתובת"
+
+
+class MeiEdenUrgentDeliverySensor(MeiEdenBaseSensor):
+    """תאריך משלוח דחוף הקרוב ביותר (אם קיים)."""
+    _attr_icon = "mdi:truck-alert"
+    _attr_device_class = SensorDeviceClass.DATE
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "urgent_delivery")
+        self._attr_name = "משלוח דחוף"
+
+    @property
+    def native_value(self):
+        urgent: list = self._get_value("UrgentDeliveryDates") or []
+        if not urgent:
+            return None
+        dt = _parse_dt(urgent[0])
+        return dt.date() if dt else None
+
+    @property
+    def extra_state_attributes(self):
+        urgent: list = self._get_value("UrgentDeliveryDates") or []
+        return {
+            "all_urgent_dates": [
+                _parse_dt(d).date().isoformat() if _parse_dt(d) else d
+                for d in urgent
+            ],
+            "count": len(urgent),
+        }
+
+
+class MeiEdenLastInvoiceSensor(MeiEdenBaseSensor):
+    """סכום החשבונית האחרונה + קישור ל-PDF."""
+    _attr_icon = "mdi:receipt-text"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = ILS
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "last_invoice")
+        self._attr_name = "חשבונית אחרונה"
+
+    def _latest_invoice(self) -> dict | None:
+        inv_list = self._get_section("com-statements", "invoice_list")
+        if isinstance(inv_list, list) and inv_list:
+            return inv_list[0]
+        return None
+
+    @property
+    def native_value(self):
+        inv = self._latest_invoice()
+        if not inv:
+            return self._get_section("com-statements", "last_invoice_amount")
+        try:
+            return float(inv.get("total_amount", 0))
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        inv = self._latest_invoice() or {}
+        dt = _parse_dt(inv.get("date"))
+        pay_dt = _parse_dt(inv.get("pay_date"))
+        return {
+            "date": dt.date().isoformat() if dt else None,
+            "pay_date": pay_dt.date().isoformat() if pay_dt else None,
+            "status": inv.get("status"),
+            "is_paid": inv.get("status") == "Paid",
+            "vat": inv.get("vat_value"),
+            "net": inv.get("net_value"),
+            "pdf_url": inv.get("download_pdf_url"),
+            "series": inv.get("series"),
+            "reference": inv.get("reference"),
+        }
+
+
+class MeiEdenOverdueSensor(MeiEdenBaseSensor):
+    """חוב בפיגור."""
+    _attr_icon = "mdi:alert-circle"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = ILS
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "overdue")
+        self._attr_name = "חוב בפיגור"
+
+    @property
+    def native_value(self):
+        val = self._get_section("com-statements", "overdue_amount")
+        try:
+            return float(val) if val is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    @property
+    def extra_state_attributes(self):
+        statements = self._get_section("com-statements") or {}
+        return {
+            "current_balance": statements.get("current_balance"),
+            "next_payment_date": statements.get("next_payment_date") or None,
+            "account_message": statements.get("account_message") or None,
+        }
+
+
+class MeiEdenEquipmentNameSensor(MeiEdenBaseSensor):
+    """שם ודגם הבר מים המותקן."""
+    _attr_icon = "mdi:water-pump"
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "equipment_name")
+        self._attr_name = "דגם בר מים"
+
+    def _first_equipment(self) -> dict | None:
+        eq = self._get_section("com-equipment")
+        if isinstance(eq, list) and eq:
+            return eq[0]
+        return None
+
+    @property
+    def native_value(self):
+        eq = self._first_equipment()
+        return eq.get("Name") if eq else None
+
+    @property
+    def extra_state_attributes(self):
+        eq = self._first_equipment() or {}
+        return {
+            "serial_number": eq.get("SerialNumber"),
+            "business_line": eq.get("BusinessLine"),
+            "image_url": eq.get("Image"),
+            "product_url": eq.get("Url"),
+            "active": eq.get("ActiveStatus"),
+            "equipment_id": eq.get("Id"),
+        }
+
+
+class MeiEdenEquipmentInstallDateSensor(MeiEdenBaseSensor):
+    """תאריך התקנת הבר מים + ימים מאז."""
+    _attr_icon = "mdi:calendar-check"
+    _attr_device_class = SensorDeviceClass.DATE
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "equipment_install")
+        self._attr_name = "תאריך התקנת ציוד"
+
+    def _first_equipment(self) -> dict | None:
+        eq = self._get_section("com-equipment")
+        if isinstance(eq, list) and eq:
+            return eq[0]
+        return None
+
+    @property
+    def native_value(self):
+        eq = self._first_equipment()
+        if not eq:
+            return None
+        dt = _parse_dt(eq.get("InstallDate"))
+        return dt.date() if dt else None
+
+    @property
+    def extra_state_attributes(self):
+        eq = self._first_equipment() or {}
+        install_dt = _parse_dt(eq.get("InstallDate"))
+        days_since = None
+        if install_dt:
+            days_since = (datetime.now() - install_dt).days
+        return {
+            "days_since_install": days_since,
+            "replacement_date": (
+                _parse_dt(eq.get("ReplacementDate")).date().isoformat()
+                if _parse_dt(eq.get("ReplacementDate")) else None
+            ),
+            "return_date": eq.get("ReturnDate"),
+        }
+
+
+class MeiEdenEquipmentOwnershipSensor(MeiEdenBaseSensor):
+    """האם הציוד בשכירות או קנוי."""
+    _attr_icon = "mdi:tag"
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "equipment_ownership")
+        self._attr_name = "סוג בעלות ציוד"
+
+    def _first_equipment(self) -> dict | None:
+        eq = self._get_section("com-equipment")
+        if isinstance(eq, list) and eq:
+            return eq[0]
+        return None
+
+    @property
+    def native_value(self):
+        eq = self._first_equipment()
+        if not eq:
+            return None
+        code = eq.get("RentalOrPurchase")
+        return {1: "שכירות", 2: "קנייה"}.get(code, str(code))
+
+
+class MeiEdenCustomerNameSensor(MeiEdenBaseSensor):
+    """שם מלא של בעל החשבון."""
+    _attr_icon = "mdi:account"
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "customer_name")
+        self._attr_name = "שם לקוח"
+
+    @property
+    def native_value(self):
+        addr = self._get_value("InvoiceAddress") or {}
+        first = addr.get("FirstName", "")
+        last = addr.get("LastName", "")
+        full = f"{first} {last}".strip()
+        return full or None
+
+
+class MeiEdenIsPackageSensor(MeiEdenBaseSensor):
+    """האם הלקוח במסלול חבילה קבועה."""
+    _attr_icon = "mdi:package-variant"
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "is_package")
+        self._attr_name = "מסלול חבילה"
+
+    @property
+    def native_value(self):
+        is_pkg = self._get_value("IsPackage")
+        if is_pkg is None:
+            return "לא ידוע"
+        return "חבילה קבועה" if is_pkg else "הזמנה רגילה"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "raw": self._get_value("IsPackage"),
+            "number_of_employees": self._get_value("NumberOfEmployees"),
+            "pay_type_code": self._get_value("PayTypeCode"),
+            "minimum_order_date": self._get_value("MinimumDateForOrder"),
+        }

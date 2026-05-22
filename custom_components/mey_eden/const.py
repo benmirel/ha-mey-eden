@@ -13,8 +13,8 @@ SMS_GENERATE_URL = f"{BASE_URL}/myeden/customer_login/smsgenerate/"
 SMS_LOGIN_URL = f"{BASE_URL}/myeden/customer_login/login/"
 SECTIONS_URL = f"{BASE_URL}/customer/section/load/"
 
-# קצב עדכון - כל 6 שעות (לא לעמוס על השרת)
-UPDATE_INTERVAL = timedelta(hours=6)
+# UPDATED INTERVAL TO 30 MINUTES, TRYING COOKIE DISCONNECT BYPASS
+UPDATE_INTERVAL = timedelta(minutes=30)
 
 # Headers שמדמים דפדפן רגיל
 DEFAULT_HEADERS = {

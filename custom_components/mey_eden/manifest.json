@@ -6,7 +6,7 @@
   "codeowners": ["@benmirel"],
   "requirements": [],
   "iot_class": "cloud_polling",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "config_flow": true,
   "integration_type": "service"
 }

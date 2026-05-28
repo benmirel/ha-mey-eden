@@ -74,14 +74,36 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             return data
 
-        except MeiEdenAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
-        except MeiEdenApiError as err:
-            if "customerId =" in str(err) or "No such entity" in str(err):
-                raise ConfigEntryAuthFailed("פג תוקף החיבור - נא להתחבר מחדש.") from err
+        except (MeiEdenAuthError, MeiEdenApiError) as err:
+            # בודקים האם זו שגיאת אימות (התנתקות/עוגיה שפגה)
+            is_auth_error = isinstance(err, MeiEdenAuthError) or "customerId =" in str(err) or "No such entity" in str(err)
             
             # == הגיבוי הלוקאלי נכנס לפעולה ==
             if self.data:
                 _LOGGER.warning("משיכה נכשלה, משתמש בנתונים אחרונים מהזיכרון. שגיאה: %s", err)
+                
+                # אם זו התנתקות ויש לנו קאש - נשלח נוטיפיקציה!
+                if is_auth_error:
+                    # שולח פוש לטלפון (לכל המכשירים המחוברים ל-HA)
+                    self.hass.async_create_task(
+                        self.hass.services.async_call(
+                            "notify", "notify", 
+                            {
+                                "title": "💧 התראה: מי עדן התנתק!",
+                                "message": "החיבור לתוסף פג תוקף, לכן מוצגים נתונים ישנים מהזיכרון. יש להיכנס להגדרות ולהתחבר מחדש."
+                            }
+                        )
+                    )
+                    # מוסיף גם התראה כתומה בפעמון בתוך הממשק של Home Assistant
+                    self.hass.components.persistent_notification.async_create(
+                        "החיבור למי עדן פג תוקף והמערכת מציגה נתונים ישנים. נא להיכנס להגדרות התוספים ולהתחבר מחדש.",
+                        title="💧 תקלת התחברות במי עדן",
+                        notification_id="mei_eden_auth_failed"
+                    )
+                
                 return self.data
+            
+            if is_auth_error:
+                raise ConfigEntryAuthFailed("פג תוקף החיבור - נא להתחבר מחדש.") from err
+            
             raise UpdateFailed(str(err)) from err

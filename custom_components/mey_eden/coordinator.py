@@ -78,32 +78,24 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # בודקים האם זו שגיאת אימות (התנתקות/עוגיה שפגה)
             is_auth_error = isinstance(err, MeiEdenAuthError) or "customerId =" in str(err) or "No such entity" in str(err)
             
-            # == הגיבוי הלוקאלי נכנס לפעולה ==
-            if self.data:
-                _LOGGER.warning("משיכה נכשלה, משתמש בנתונים אחרונים מהזיכרון. שגיאה: %s", err)
-                
-                # אם זו התנתקות ויש לנו קאש - נשלח נוטיפיקציה!
-                if is_auth_error:
-                    # שולח פוש לטלפון (לכל המכשירים המחוברים ל-HA)
-                    self.hass.async_create_task(
-                        self.hass.services.async_call(
-                            "notify", "notify", 
-                            {
-                                "title": "💧 התראה: מי עדן התנתק!",
-                                "message": "החיבור לתוסף פג תוקף, לכן מוצגים נתונים ישנים מהזיכרון. יש להיכנס להגדרות ולהתחבר מחדש."
-                            }
-                        )
-                    )
-                    # מוסיף גם התראה כתומה בפעמון בתוך הממשק של Home Assistant
-                    self.hass.components.persistent_notification.async_create(
-                        "החיבור למי עדן פג תוקף והמערכת מציגה נתונים ישנים. נא להיכנס להגדרות התוספים ולהתחבר מחדש.",
-                        title="💧 תקלת התחברות במי עדן",
-                        notification_id="mei_eden_auth_failed"
-                    )
-                
-                return self.data
-            
             if is_auth_error:
+                _LOGGER.warning("החיבור למי עדן פג תוקף. דורש אימות מחדש (REAUTH).")
+                # שולחים פוש כדי שתדע לגשת לאמת
+                self.hass.async_create_task(
+                    self.hass.services.async_call(
+                        "notify", "notify", 
+                        {
+                            "title": "💧 התראה: מי עדן התנתק!",
+                            "message": "החיבור לתוסף פג תוקף. היכנס להגדרות התוספים ב-Home Assistant לאימות מחדש."
+                        }
+                    )
+                )
+                # חייבים לזרוק את השגיאה הזו כדי להקפיץ את ה-UI של ה-Reauth
                 raise ConfigEntryAuthFailed("פג תוקף החיבור - נא להתחבר מחדש.") from err
+            
+            # == הגיבוי הלוקאלי נכנס לפעולה רק במקרה של שגיאת רשת זמנית ==
+            if self.data:
+                _LOGGER.warning("שגיאת רשת מול מי עדן, משתמש בנתונים אחרונים מהזיכרון. שגיאה: %s", err)
+                return self.data
             
             raise UpdateFailed(str(err)) from err

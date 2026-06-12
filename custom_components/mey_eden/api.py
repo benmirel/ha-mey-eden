@@ -73,7 +73,7 @@ class MeiEdenClient:
             ) as resp:
                 self._merge_response_cookies(resp)
                 html = await resp.text()
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err: # <--- הוספנו TimeoutError
             _LOGGER.error("Failed loading login page: %s", err)
             raise MeiEdenApiError(f"Cannot reach Mei Eden: {err}") from err
 
@@ -113,7 +113,7 @@ class MeiEdenClient:
                 SMS_GENERATE_URL,
                 data=payload,
                 headers=headers,
-                cookies=self._cookies,  # 🔥 התיקון הקריטי של העוגיות שקלוד שכח
+                cookies=self._cookies,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 self._merge_response_cookies(resp)
@@ -126,7 +126,7 @@ class MeiEdenClient:
                 if "error" in lower and "success" not in lower:
                     _LOGGER.warning("SMS request may have failed: %s", text[:200])
                 return True
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err: # <--- הוספנו TimeoutError
             _LOGGER.error("Failed sending SMS request: %s", err)
             return False
 

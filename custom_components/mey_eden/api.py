@@ -73,7 +73,7 @@ class MeiEdenClient:
             ) as resp:
                 self._merge_response_cookies(resp)
                 html = await resp.text()
-        except (aiohttp.ClientError, TimeoutError) as err: # <--- הוספנו TimeoutError
+        except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.error("Failed loading login page: %s", err)
             raise MeiEdenApiError(f"Cannot reach Mei Eden: {err}") from err
 
@@ -126,7 +126,7 @@ class MeiEdenClient:
                 if "error" in lower and "success" not in lower:
                     _LOGGER.warning("SMS request may have failed: %s", text[:200])
                 return True
-        except (aiohttp.ClientError, TimeoutError) as err: # <--- הוספנו TimeoutError
+        except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.error("Failed sending SMS request: %s", err)
             return False
 
@@ -157,7 +157,7 @@ class MeiEdenClient:
                 SMS_LOGIN_URL,
                 data=payload,
                 headers=headers,
-                cookies=self._cookies,  # 🔥 התיקון השני של העוגיות באימות
+                cookies=self._cookies,
                 timeout=aiohttp.ClientTimeout(total=15),
                 allow_redirects=False,
             ) as resp:
@@ -176,7 +176,7 @@ class MeiEdenClient:
                     return False
 
                 return True
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err:  # <--- הוספנו פה
             _LOGGER.error("Failed verifying OTP: %s", err)
             return False
 
@@ -231,5 +231,5 @@ class MeiEdenClient:
 
                 data = await resp.json(content_type=None)
                 return data
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err:  # <--- הוספנו פה
             raise MeiEdenApiError(f"Network error: {err}") from err

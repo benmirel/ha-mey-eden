@@ -62,6 +62,9 @@ class MeiEdenConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 except MeiEdenApiError as err:
                     _LOGGER.error("Cannot reach Mei Eden: %s", err)
                     errors["base"] = "cannot_connect"
+                except Exception as err: # <--- רשת ביטחון לכל שגיאה לא צפויה
+                    _LOGGER.exception("Unexpected error during SMS request: %s", err)
+                    errors["base"] = "cannot_connect" # מחזיר שגיאה לוגית ל-UI במקום לרסק אותו
                 else:
                     if sent:
                         return await self.async_step_verify()

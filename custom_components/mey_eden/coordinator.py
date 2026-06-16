@@ -83,10 +83,11 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # שולחים פוש כדי שתדע לגשת לאמת
                 self.hass.async_create_task(
                     self.hass.services.async_call(
-                        "notify", "notify", 
+                        "persistent_notification", "create", 
                         {
-                            "title": "💧 התראה: מי עדן התנתק!",
-                            "message": "החיבור לתוסף פג תוקף. היכנס להגדרות התוספים ב-Home Assistant לאימות מחדש."
+                            "title": "💧 תקלת התחברות במי עדן",
+                            "message": "החיבור למי עדן פג תוקף והמערכת מציגה נתונים ישנים. נא להיכנס להגדרות התוספים ולהתחבר מחדש.",
+                            "notification_id": "mei_eden_auth_failed"
                         }
                     )
                 )

@@ -12,6 +12,8 @@ LOGIN_PAGE_URL = f"{BASE_URL}/myeden/customer_login/"
 SMS_GENERATE_URL = f"{BASE_URL}/myeden/customer_login/smsgenerate/"
 SMS_LOGIN_URL = f"{BASE_URL}/myeden/customer_login/login/"
 SECTIONS_URL = f"{BASE_URL}/customer/section/load/"
+# האזור האישי עבר מ-/myeden/customer/index/ (מחזיר 404 מספטמבר 2026)
+CUSTOMER_PAGE_URL = f"{BASE_URL}/customer/account/"
 
 # UPDATED INTERVAL TO 30 MINUTES, TRYING COOKIE DISCONNECT BYPASS
 UPDATE_INTERVAL = timedelta(minutes=30)

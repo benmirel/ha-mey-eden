@@ -10,12 +10,13 @@ from homeassistant.components.sensor import (
     SensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_PHONE
+from .const import CUSTOMER_PAGE_URL, DOMAIN, CONF_PHONE
 from .coordinator import MeiEdenCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,8 @@ async def async_setup_entry(
         MeiEdenAddressSensor(coordinator, customer_number),
         MeiEdenCustomerNameSensor(coordinator, customer_number),
         MeiEdenIsPackageSensor(coordinator, customer_number),
+        # --- אבחון ---
+        MeiEdenLastUpdateSensor(coordinator, customer_number),
     ])
 
 
@@ -90,7 +93,7 @@ class MeiEdenBaseSensor(CoordinatorEntity[MeiEdenCoordinator], SensorEntity):
             name=f"מי עדן ({customer_number})",
             manufacturer="Mei Eden",
             model="חשבון לקוח",
-            configuration_url="https://www.meyeden.co.il/myeden/customer/index/",
+            configuration_url=CUSTOMER_PAGE_URL,
         )
 
     def _get_value(self, key: str, default: Any = None) -> Any:
@@ -542,3 +545,23 @@ class MeiEdenIsPackageSensor(MeiEdenBaseSensor):
             "pay_type_code": self._get_value("PayTypeCode"),
             "minimum_order_date": self._get_value("MinimumDateForOrder"),
         }
+
+
+class MeiEdenLastUpdateSensor(MeiEdenBaseSensor):
+    """מתי נמשכו לאחרונה נתונים אמיתיים מהאתר - מראה אם הדשבורד תקוע."""
+    _attr_icon = "mdi:update"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, customer_number):
+        super().__init__(coordinator, customer_number, "last_update")
+        self._attr_name = "עדכון אחרון"
+
+    @property
+    def available(self) -> bool:
+        # נשאר זמין גם כשהחיבור נכשל - זה בדיוק המקרה שבו רוצים לראות אותו
+        return self.coordinator.last_success is not None
+
+    @property
+    def native_value(self):
+        return self.coordinator.last_success

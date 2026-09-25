@@ -7,6 +7,7 @@ import aiohttp
 
 from .const import (
     BASE_URL,
+    CUSTOMER_PAGE_URL,
     DEFAULT_HEADERS,
     LOGIN_PAGE_URL,
     SECTIONS_URL,
@@ -198,7 +199,7 @@ class MeiEdenClient:
             **DEFAULT_HEADERS,
             "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json, text/javascript, */*; q=0.01",
-            "Referer": f"{BASE_URL}/myeden/customer/index/",
+            "Referer": CUSTOMER_PAGE_URL,
         }
 
         try:
@@ -230,6 +231,13 @@ class MeiEdenClient:
                     raise MeiEdenApiError(f"Non-JSON response: {text[:200]}")
 
                 data = await resp.json(content_type=None)
+
+                # כשהסשן פג, מג'נטו מחזיר 200 עם סקשנים ריקים ({"data_id": ...} בלבד)
+                if "dashboard" in sections:
+                    dashboard = data.get("dashboard") if isinstance(data, dict) else None
+                    if not isinstance(dashboard, dict) or "com-customer" not in dashboard:
+                        raise MeiEdenAuthError("Empty sections - session expired")
+
                 return data
         except (aiohttp.ClientError, TimeoutError) as err:  # <--- הוספנו פה
             raise MeiEdenApiError(f"Network error: {err}") from err

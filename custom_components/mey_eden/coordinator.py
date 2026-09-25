@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -11,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import MeiEdenApiError, MeiEdenAuthError, MeiEdenClient
 from .const import CONF_COOKIES, DOMAIN, UPDATE_INTERVAL
@@ -35,6 +37,9 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # נתיב לקובץ הגיבוי המקומי
         self.cache_path = hass.config.path(f".{DOMAIN}_{entry.entry_id}_cache.json")
         
+        # מתי הצלחנו לאחרונה למשוך נתונים אמיתיים מהאתר
+        self.last_success: datetime | None = None
+
         # טעינה ראשונית מהזיכרון הלוקאלי (כדי לא להיות unavailable בריסטרט)
         self.data = self._load_cache()
 
@@ -42,7 +47,12 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if os.path.exists(self.cache_path):
             try:
                 with open(self.cache_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    cache = json.load(f)
+                # פורמט חדש: {"data": ..., "last_success": ...}. פורמט ישן: הנתונים עצמם
+                if isinstance(cache, dict) and "last_success" in cache:
+                    self.last_success = dt_util.parse_datetime(cache["last_success"] or "")
+                    return cache.get("data")
+                return cache
             except Exception as e:
                 _LOGGER.error("Failed to load cache: %s", e)
         return None
@@ -50,7 +60,13 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _save_cache(self, data: dict[str, Any]):
         try:
             with open(self.cache_path, "w", encoding="utf-8") as f:
-                json.dump(data, f)
+                json.dump(
+                    {
+                        "data": data,
+                        "last_success": self.last_success.isoformat() if self.last_success else None,
+                    },
+                    f,
+                )
         except Exception as e:
             _LOGGER.error("Failed to save cache: %s", e)
 
@@ -63,6 +79,7 @@ class MeiEdenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             
             # שמירה לקובץ לוקאלי
+            self.last_success = dt_util.utcnow()
             self._save_cache(data)
 
             # עדכון עוגיות
